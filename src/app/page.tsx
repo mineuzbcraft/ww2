@@ -50,7 +50,7 @@ import {
 } from "recharts"
 
 // Firebase hooks
-import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { doc, collection } from "firebase/firestore"
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
@@ -75,26 +75,21 @@ const DEFAULT_HABITS = [
   { name: "Kitob o'qish (30 bet)", category: "learning" },
 ]
 
-const generateId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-};
+// Barqaror ID generatsiya qilish
+const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
 export default function KunRejaApp() {
   const db = useFirestore()
-  const { user: authUser } = useUser()
   const [selectedDate, setSelectedDate] = React.useState<Date>(new Date())
   const [isManageOpen, setIsManageOpen] = React.useState(false)
   const [newHabitName, setNewHabitName] = React.useState("")
   const [newHabitCategory, setNewHabitCategory] = React.useState<Habit['category']>('other')
   const { toast } = useToast()
 
-  // Anonymous Auth yoqilmagan bo'lsa ham ishlaydigan ID
-  const userId = authUser?.uid || "abubakr_academy_fixed_id"
+  // Abubakr uchun maxsus barqaror ID (Auth-siz ham ishlashi uchun)
+  const userId = "abubakr_academy_champion_id"
 
-  // Fetch habits from Firestore
+  // Firestore-dan odatlarni olish
   const habitsQuery = useMemoFirebase(() => {
     if (!db) return null
     return collection(db, 'users', userId, 'habits')
@@ -103,7 +98,7 @@ export default function KunRejaApp() {
   const { data: habitsRaw, isLoading: isHabitsLoading } = useCollection<Habit>(habitsQuery)
   const habits = habitsRaw || []
 
-  // Fetch daily notes
+  // Kunlik qaydlarni olish
   const dateStr = format(selectedDate, 'yyyy-MM-dd')
   const notesQuery = useMemoFirebase(() => {
     if (!db) return null
@@ -169,7 +164,7 @@ export default function KunRejaApp() {
         addHabit(h.name, h.category as any)
       }
     })
-    toast({ title: "Muvaffaqiyat", description: "Vazifalar yuklandi!" })
+    toast({ title: "Muvaffaqiyat", description: "Barcha standart vazifalar yuklandi!" })
   }
 
   const handleManualAdd = () => {
@@ -177,10 +172,14 @@ export default function KunRejaApp() {
       toast({ title: "Xatolik", description: "Vazifa nomini kiriting!", variant: "destructive" })
       return
     }
+    if (!db) {
+      toast({ title: "Xatolik", description: "Bazaga ulanib bo'lmadi!", variant: "destructive" })
+      return
+    }
     addHabit(newHabitName, newHabitCategory)
     setNewHabitName("")
     setIsManageOpen(false)
-    toast({ title: "Muvaffaqiyat", description: "Yangi vazifa qo'shildi!" })
+    toast({ title: "Muvaffaqiyat", description: "Yangi vazifa saqlandi!" })
   }
 
   const deleteHabit = (id: string) => {

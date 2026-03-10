@@ -32,7 +32,11 @@ import {
   Sparkles,
   Quote,
   Flag,
-  Rocket
+  Rocket,
+  FileText,
+  Save,
+  AlertTriangle,
+  HandMetal
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -50,6 +54,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import {
   CartesianGrid,
@@ -63,7 +68,7 @@ import {
 } from "recharts"
 
 // Firebase hooks
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, collection } from "firebase/firestore"
 import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
@@ -103,10 +108,13 @@ export default function KunRejaApp() {
   const [isManageOpen, setIsManageOpen] = React.useState(false)
   const [newHabitName, setNewHabitName] = React.useState("")
   const [newHabitCategory, setNewHabitCategory] = React.useState<Habit['category']>('other')
+  const [noteContent, setNoteContent] = React.useState("")
   const { toast } = useToast()
 
   const userId = "abubakr_fixed_id"
+  const dateStr = format(selectedDate, 'yyyy-MM-dd')
 
+  // Firebase Queries
   const habitsQuery = useMemoFirebase(() => {
     if (!db) return null
     return collection(db, 'users', userId, 'habits')
@@ -115,7 +123,26 @@ export default function KunRejaApp() {
   const { data: habitsRaw, isLoading: isHabitsLoading } = useCollection<Habit>(habitsQuery)
   const habits = habitsRaw || []
 
-  const dateStr = format(selectedDate, 'yyyy-MM-dd')
+  const noteRef = useMemoFirebase(() => {
+    if (!db) return null
+    return doc(db, 'users', userId, 'dailyNotes', dateStr)
+  }, [db, userId, dateStr])
+
+  const { data: noteData } = useDoc<{content: string}>(noteRef)
+
+  React.useEffect(() => {
+    if (noteData) {
+      setNoteContent(noteData.content || "")
+    } else {
+      setNoteContent("")
+    }
+  }, [noteData])
+
+  const saveNote = () => {
+    if (!db || !noteRef) return
+    setDocumentNonBlocking(noteRef, { content: noteContent, date: dateStr }, { merge: true })
+    toast({ title: "SAQLANDI", description: "Bugungi darslar va xulosalar muhrlandi!" })
+  }
 
   const toggleHabit = (id: string, date: string) => {
     if (!db) return
@@ -157,7 +184,7 @@ export default function KunRejaApp() {
       name: name.trim(),
       category: category,
       completedDates: [],
-      prayerHistory: {} // Empty object instead of undefined
+      prayerHistory: {}
     }
 
     const habitRef = doc(db, 'users', userId, 'habits', id)
@@ -247,6 +274,8 @@ export default function KunRejaApp() {
   }
 
   const currentRank = getRank(selectedDayStats.percent)
+  const isPastDate = isBefore(startOfDay(selectedDate), startOfDay(new Date()))
+  const isFailDay = isPastDate && selectedDayStats.percent === 0 && habits.length > 0
 
   if (isHabitsLoading) {
     return (
@@ -259,47 +288,62 @@ export default function KunRejaApp() {
     )
   }
 
-  const isPastDate = isBefore(startOfDay(selectedDate), startOfDay(new Date()))
-
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-100 p-4 md:p-8 max-w-[1400px] mx-auto space-y-12 pb-24 animate-in fade-in duration-1000">
+    <div className={cn(
+      "min-h-screen transition-colors duration-700 p-4 md:p-8 max-w-[1400px] mx-auto space-y-12 pb-32",
+      isFailDay ? "bg-red-950/20" : "bg-[#020617]"
+    )}>
       
       {/* Top Coach Banner */}
-      <div className="bg-indigo-600/20 border-y border-indigo-500/30 py-6 px-6 rounded-3xl flex flex-col md:flex-row items-center justify-center gap-4 animate-in slide-in-from-top duration-700">
+      <div className={cn(
+        "border-y py-6 px-6 rounded-3xl flex flex-col md:flex-row items-center justify-center gap-4 animate-in slide-in-from-top duration-700",
+        isFailDay ? "bg-red-600/20 border-red-500/30" : "bg-indigo-600/20 border-indigo-500/30"
+      )}>
          <div className="flex items-center gap-3">
-            <Brain className="h-6 w-6 text-indigo-400" />
+            <Brain className={cn("h-6 w-6", isFailDay ? "text-red-400" : "text-indigo-400")} />
             <p className="text-[12px] md:text-sm font-black uppercase tracking-[0.2em] text-center">
-              ABUBAKR, TINMASDAN ALLOHDAN SO'RA! 18 YOSHDA O'ZBEKISTONDAN MILLIONER BO'LIB KETASAN!
+              {isFailDay ? "ABUBAKR, MILLIONERLIKNI UNUTDINGMI? TUR O'RNINGDAN!" : "ABUBAKR, TINMASDAN ALLOHDAN SO'RA! 18 YOSHDA MILLIONER BO'LASAN!"}
             </p>
-            <Brain className="h-6 w-6 text-indigo-400" />
+            <Brain className={cn("h-6 w-6", isFailDay ? "text-red-400" : "text-indigo-400")} />
          </div>
-         <div className="bg-yellow-500/20 px-4 py-1 rounded-full border border-yellow-500/30 text-[10px] font-bold text-yellow-400 animate-pulse">
-           EUROPEAN DREAM 2026
+         <div className={cn(
+           "px-4 py-1 rounded-full border text-[10px] font-bold animate-pulse",
+           isFailDay ? "bg-red-500/20 border-red-500/30 text-red-400" : "bg-yellow-500/20 border-yellow-500/30 text-yellow-400"
+         )}>
+           {isFailDay ? "DANGER: NO PROGRESS" : "EUROPEAN DREAM 2026"}
          </div>
       </div>
 
       {/* Hero Section */}
       <Card className={cn(
-        "border-none shadow-[0_0_80px_rgba(79,70,229,0.3)] bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-[#020617] text-white overflow-hidden rounded-[4rem] transition-all duration-700",
-        selectedDayStats.percent >= 90 && "animate-glow-gold border border-yellow-500/20"
+        "border-none overflow-hidden rounded-[4rem] transition-all duration-700",
+        isFailDay ? "bg-gradient-to-br from-red-950 via-red-900 to-black shadow-[0_0_80px_rgba(239,68,68,0.3)]" : 
+        selectedDayStats.percent >= 90 ? "bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-[#020617] animate-glow-gold border border-yellow-500/20 shadow-[0_0_80px_rgba(250,204,21,0.2)]" :
+        "bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-[#020617] shadow-[0_0_80px_rgba(79,70,229,0.3)]"
       )}>
         <CardContent className="p-8 md:p-16 flex flex-col md:flex-row items-center gap-12 relative">
-          <div className="absolute top-4 right-8 md:right-16 bg-yellow-500/10 border border-yellow-500/20 px-6 py-2 rounded-full hidden md:flex items-center gap-3">
+          <div className="absolute top-4 right-8 md:right-16 hidden md:flex items-center gap-3">
              <Star className="h-5 w-5 text-yellow-400 fill-current animate-pulse" />
              <span className="text-[10px] font-black uppercase tracking-widest text-yellow-200">INSHA'ALLOH: MILLIONER</span>
           </div>
           <div className="relative group">
-            <div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20 animate-pulse" />
-            <div className="relative bg-gradient-to-br from-indigo-500 to-purple-700 p-10 rounded-[3.5rem] border border-white/20 shadow-2xl transition-transform duration-500 group-hover:scale-110">
-              <Trophy className="h-24 w-24 text-yellow-300 drop-shadow-[0_0_25px_rgba(253,224,71,0.6)] animate-float" />
-              {selectedDayStats.percent >= 95 && <Crown className="absolute -top-6 -right-6 h-12 w-12 text-yellow-400 animate-bounce" />}
+            <div className={cn("absolute inset-0 blur-3xl opacity-20 animate-pulse", isFailDay ? "bg-red-500" : "bg-indigo-500")} />
+            <div className={cn(
+              "relative p-10 rounded-[3.5rem] border border-white/20 shadow-2xl transition-transform duration-500 group-hover:scale-105",
+              isFailDay ? "bg-gradient-to-br from-red-600 to-red-900" : "bg-gradient-to-br from-indigo-500 to-purple-700"
+            )}>
+              {isFailDay ? <AlertTriangle className="h-24 w-24 text-white animate-bounce" /> : <Trophy className="h-24 w-24 text-yellow-300 drop-shadow-[0_0_25px_rgba(253,224,71,0.6)] animate-float" />}
+              {selectedDayStats.percent >= 95 && !isFailDay && <Crown className="absolute -top-6 -right-6 h-12 w-12 text-yellow-400 animate-bounce" />}
             </div>
           </div>
           <div className="space-y-6 text-center md:text-left flex-1">
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-2">
-              <div className="bg-orange-500/20 px-4 py-1.5 rounded-full border border-orange-500/30 flex items-center gap-2">
-                <Flame className="h-4 w-4 text-orange-500 animate-pulse" />
-                <span className="text-[10px] font-black tracking-widest uppercase text-orange-200">TINMASDAN HARAKAT QIL!</span>
+              <div className={cn(
+                "px-4 py-1.5 rounded-full border flex items-center gap-2",
+                isFailDay ? "bg-red-500/20 border-red-500/30 text-red-200" : "bg-orange-500/20 border-orange-500/30 text-orange-200"
+              )}>
+                <Flame className={cn("h-4 w-4 animate-pulse", isFailDay ? "text-red-500" : "text-orange-500")} />
+                <span className="text-[10px] font-black tracking-widest uppercase">{isFailDay ? "MAS'ULIYATSIZLIK!" : "TINMASDAN HARAKAT QIL!"}</span>
               </div>
               <div className={cn("px-4 py-1.5 rounded-full border flex items-center gap-2", currentRank.color.replace('text', 'bg').replace('400', '500') + '/20', currentRank.color.replace('text', 'border').replace('400', '500') + '/30')}>
                 <currentRank.icon className={cn("h-4 w-4", currentRank.color)} />
@@ -307,23 +351,23 @@ export default function KunRejaApp() {
               </div>
             </div>
             <h1 className="text-4xl md:text-7xl font-black tracking-tighter uppercase leading-[1.0] bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-200 to-indigo-500">
-              ABUBAKR, HARAKAT QIL! <br/><span className="text-indigo-400 text-2xl md:text-4xl">NAMOZ O'QI VA ALLOHDAN SO'RA!</span>
+              {isFailDay ? "MAG'LUBIYAT KUNI!" : "ABUBAKR, HARAKAT QIL!"} <br/><span className={cn("text-2xl md:text-4xl", isFailDay ? "text-red-400" : "text-indigo-400")}>NAMOZ O'QI VA ALLOHDAN SO'RA!</span>
             </h1>
             <p className="text-sm md:text-xl font-black text-indigo-300 uppercase tracking-[0.1em] max-w-2xl mx-auto md:mx-0 opacity-90 animate-in slide-in-from-left duration-1000 mt-4">
-              INSHA'ALLOH, 18 YOSHGACHA O'ZBEKISTONDAN CHIQIB KETASAN! MILLIONER BO'LISH VA EVROPA SENI KUTMOQDA!
+              {isFailDay ? "AGAR SHUNDAY DAVOM ETSANG, HECH QACHON MILLIONER BO'LA OLMAYSAN!" : "INSHA'ALLOH, 18 YOSHGACHA O'ZBEKISTONDAN CHIQIB KETASAN! MILLIONERLIK SENI KUTMOQDA!"}
             </p>
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 pt-4">
-               <div className="bg-white/5 backdrop-blur-3xl border border-white/10 px-8 py-5 rounded-[2.5rem] flex items-center gap-4 group hover:bg-white/10 transition-all cursor-default shadow-2xl">
-                 <Zap className="h-8 w-8 text-yellow-400 fill-current animate-pulse" /> 
+               <div className="bg-white/5 backdrop-blur-lg border border-white/10 px-8 py-5 rounded-[2.5rem] flex items-center gap-4 shadow-2xl">
+                 <Zap className={cn("h-8 w-8 animate-pulse", isFailDay ? "text-red-500" : "text-yellow-400 fill-current")} /> 
                  <div>
                    <div className="text-[11px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">Success Power</div>
                    <div className="text-3xl font-black">{selectedDayStats.percent}%</div>
                  </div>
                </div>
-               <div className="bg-white/5 backdrop-blur-3xl border border-white/10 px-8 py-5 rounded-[2.5rem] flex items-center gap-4 group hover:bg-white/10 transition-all cursor-default shadow-2xl">
-                 <ShieldCheck className="h-8 w-8 text-green-400" /> 
+               <div className="bg-white/5 backdrop-blur-lg border border-white/10 px-8 py-5 rounded-[2.5rem] flex items-center gap-4 shadow-2xl">
+                 <ShieldCheck className={cn("h-8 w-8", isFailDay ? "text-red-400" : "text-green-400")} /> 
                  <div>
-                   <div className="text-[11px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">Imon Qalqoni</div>
+                   <div className="text-[11px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">Mission Progress</div>
                    <div className="text-3xl font-black">{selectedDayStats.done}/{habits.length}</div>
                  </div>
                </div>
@@ -336,9 +380,9 @@ export default function KunRejaApp() {
         <div className="lg:col-span-8 space-y-12">
           
           {/* Daily Status Header */}
-          <div className="flex flex-col md:flex-row items-center justify-between bg-slate-900/40 backdrop-blur-3xl p-10 rounded-[3.5rem] shadow-3xl border border-white/5 gap-8 animate-in slide-in-from-left duration-700">
+          <div className="flex flex-col md:flex-row items-center justify-between bg-slate-900/40 backdrop-blur-lg p-10 rounded-[3.5rem] shadow-3xl border border-white/5 gap-8">
             <div className="flex items-center gap-8 text-center md:text-left">
-              <div className="bg-indigo-600/10 p-5 rounded-3xl border border-indigo-500/20 shadow-inner">
+              <div className="bg-indigo-600/10 p-5 rounded-3xl border border-indigo-500/20">
                 <CalendarIcon className="h-12 w-12 text-indigo-400" />
               </div>
               <div>
@@ -355,20 +399,8 @@ export default function KunRejaApp() {
             </div>
           </div>
 
-          {/* Motivation Middle Block */}
-          <div className="p-10 rounded-[3.5rem] bg-gradient-to-r from-indigo-900/40 to-purple-900/40 border border-white/10 animate-in zoom-in duration-700">
-             <div className="flex items-center gap-6">
-                <div className="p-4 bg-yellow-500/20 rounded-2xl">
-                  <Rocket className="h-8 w-8 text-yellow-400" />
-                </div>
-                <p className="text-lg md:text-2xl font-black uppercase tracking-tight italic">
-                  "Abubakr, tinmasdan harakat qil! Alloh yordam bermasa hech kimmiz. 18 yoshingda sening ismingni dunyo taniydi!"
-                </p>
-             </div>
-          </div>
-
           {/* Missions Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 animate-in slide-in-from-bottom duration-1000">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
             {habits.map((h, idx) => {
               const isNamoz = h.category === 'namoz'
               const rawStatus = isNamoz 
@@ -380,9 +412,8 @@ export default function KunRejaApp() {
                 <button
                   key={h.id}
                   onClick={() => toggleHabit(h.id, dateStr)}
-                  style={{ animationDelay: `${idx * 50}ms` }}
                   className={cn(
-                    "flex items-center justify-between p-8 rounded-[3rem] border-2 transition-all text-left shadow-2xl hover:scale-[1.04] active:scale-95 group animate-in fade-in slide-in-from-bottom-3",
+                    "flex items-center justify-between p-8 rounded-[3rem] border-2 transition-all text-left shadow-2xl hover:scale-[1.02] active:scale-95 group",
                     status === 'ontime' || status === 'done' ? "bg-green-500/10 border-green-500/30 text-green-500" : 
                     status === 'late' ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-500" :
                     status === 'missed' ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-slate-900/40 border-white/5 hover:border-white/20 text-slate-400"
@@ -391,19 +422,18 @@ export default function KunRejaApp() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <span className={cn(
-                        "text-[10px] font-black uppercase px-4 py-1.5 rounded-full text-white shadow-xl",
+                        "text-[10px] font-black uppercase px-4 py-1.5 rounded-full text-white",
                         h.category === 'namoz' ? "bg-indigo-600" :
                         h.category === 'sport' ? "bg-orange-600" :
                         h.category === 'learning' ? "bg-emerald-600" : "bg-slate-700"
                       )}>
                         {h.category}
                       </span>
-                      {(status === 'ontime' || status === 'done') && <Star className="h-4 w-4 text-yellow-400 fill-current animate-bounce" />}
                     </div>
                     <h3 className="text-xl font-black tracking-tight leading-none group-hover:text-white transition-colors">{h.name}</h3>
                   </div>
                   <div className={cn(
-                    "h-16 w-16 rounded-[1.5rem] flex items-center justify-center border-2 transition-all shadow-2xl",
+                    "h-16 w-16 rounded-[1.5rem] flex items-center justify-center border-2 transition-all shadow-xl",
                     status === 'ontime' || status === 'done' ? "bg-green-500 border-green-400 text-white" :
                     status === 'late' ? "bg-yellow-500 border-yellow-400 text-white" :
                     status === 'missed' ? "bg-red-500 border-red-400 text-white" : "bg-slate-800 border-white/5 group-hover:border-white/20"
@@ -418,7 +448,7 @@ export default function KunRejaApp() {
           </div>
 
           {/* Efficiency History */}
-          <Card className="rounded-[4rem] border border-white/5 shadow-3xl bg-slate-900/40 p-12 animate-in slide-in-from-bottom duration-1000 delay-300">
+          <Card className="rounded-[4rem] border border-white/5 bg-slate-900/40 p-12 shadow-3xl">
             <CardHeader className="p-0 pb-12">
               <CardTitle className="text-3xl font-black flex items-center gap-5 uppercase tracking-tighter text-white">
                 <BarChart3 className="h-10 w-10 text-indigo-500" /> Millionaire Path Progress
@@ -436,7 +466,7 @@ export default function KunRejaApp() {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
-                          <div className="bg-slate-950/95 backdrop-blur-3xl border border-white/10 p-6 rounded-[2rem] shadow-4xl text-white">
+                          <div className="bg-slate-950/95 backdrop-blur-lg border border-white/10 p-6 rounded-[2rem] shadow-4xl text-white">
                             <p className="font-black uppercase mb-3 border-b border-white/10 pb-3 text-indigo-300 tracking-[0.2em] text-xs">{data.fullDate}</p>
                             <div className="space-y-2">
                               <p className="font-bold flex items-center gap-3"><div className="h-3 w-3 rounded-full bg-green-500" /> SUCCESS: {data.done}</p>
@@ -451,7 +481,7 @@ export default function KunRejaApp() {
                   />
                   <Bar dataKey="done" radius={[12, 12, 0, 0]}>
                     {historyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.percent >= 80 ? "#4f46e5" : "#6366f1"} />
+                      <Cell key={`cell-${index}`} fill={entry.percent === 0 ? "#ef4444" : entry.percent >= 80 ? "#4f46e5" : "#6366f1"} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -465,8 +495,9 @@ export default function KunRejaApp() {
           
           {/* Main Index Card */}
           <Card className={cn(
-            "rounded-[4rem] border border-white/10 shadow-4xl overflow-hidden transition-all duration-1000 animate-in slide-in-from-right duration-700",
-            selectedDayStats.percent >= 80 ? "bg-gradient-to-br from-indigo-700 via-indigo-900 to-purple-950 shadow-[0_0_60px_rgba(79,70,229,0.5)]" : "bg-slate-900/60"
+            "rounded-[4rem] border border-white/10 shadow-4xl overflow-hidden transition-all duration-700",
+            isFailDay ? "bg-red-950 border-red-500/30" :
+            selectedDayStats.percent >= 80 ? "bg-gradient-to-br from-indigo-700 via-indigo-900 to-purple-950 shadow-[0_0_60px_rgba(79,70,229,0.3)]" : "bg-slate-900/60"
           )}>
             <CardHeader className="p-10 pb-6">
               <CardTitle className="text-[12px] flex items-center gap-3 font-black uppercase tracking-[0.3em] text-indigo-200">
@@ -484,7 +515,7 @@ export default function KunRejaApp() {
                   <div 
                     className={cn(
                       "h-full rounded-full transition-all duration-1000 ease-out",
-                      selectedDayStats.percent >= 80 ? "bg-white" : "bg-indigo-500"
+                      isFailDay ? "bg-red-500" : selectedDayStats.percent >= 80 ? "bg-white" : "bg-indigo-500"
                     )}
                     style={{ width: `${selectedDayStats.percent}%` }}
                   />
@@ -492,22 +523,22 @@ export default function KunRejaApp() {
                 <p className="text-[11px] font-black text-center uppercase tracking-[0.2em] text-indigo-100">
                   {selectedDayStats.percent === 100 ? "ALLOH SENGADAN ROZI BO'LSIN, CHEMPION!" : 
                    selectedDayStats.percent >= 80 ? "EVROPA SARI TO'G'RI YO'LDASAN!" : 
-                   selectedDayStats.percent >= 50 ? "RONALDO BO'LAMAN DESANG, TUR O'RNINGDAN!" : "ABUBAKR, MILLIONERLIKNI UNUTDINGMI?"}
+                   selectedDayStats.percent > 0 ? "RONALDO BO'LAMAN DESANG, TUR O'RNINGDAN!" : "ABUBAKR, MILLIONERLIKNI UNUTDINGMI?"}
                 </p>
               </div>
             </CardContent>
           </Card>
 
           {/* Motivation Feed */}
-          <div className="space-y-6 animate-in slide-in-from-right duration-700 delay-400">
+          <div className="space-y-6">
             <div className="flex items-center justify-between px-6">
               <p className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.4em]">TRENER VA RONALDO MASLAHATI</p>
               <ArrowUpRight className="h-6 w-6 text-indigo-500/50" />
             </div>
             {MOTIVATIONS.map((m, i) => (
-              <Card key={i} className="bg-slate-900/40 border border-white/5 shadow-2xl rounded-[3rem] group hover:border-indigo-500/50 transition-all duration-500">
+              <Card key={i} className="bg-slate-900/40 border border-white/5 shadow-2xl rounded-[3rem] group hover:border-indigo-500/50 transition-all">
                 <CardContent className="p-8 flex items-start gap-6">
-                  <div className="bg-indigo-600/10 p-4 rounded-3xl border border-indigo-500/20">
+                  <div className="bg-indigo-600/10 p-4 rounded-3xl border border-indigo-500/20 shrink-0">
                     {m.category === 'faith' ? <ShieldCheck className="h-6 w-6 text-indigo-400" /> :
                      m.category === 'ronaldo' ? <Star className="h-6 w-6 text-yellow-400 fill-current" /> :
                      m.category === 'sport' ? <Dumbbell className="h-6 w-6 text-indigo-400" /> : <Globe className="h-6 w-6 text-indigo-400" />}
@@ -525,33 +556,59 @@ export default function KunRejaApp() {
         </div>
       </div>
 
+      {/* Daily Notes / Trainer Report Section - MOVED TO THE VERY BOTTOM */}
+      <div className="mt-12 animate-in slide-in-from-bottom duration-1000">
+        <Card className="rounded-[3.5rem] border border-white/10 bg-slate-900/40 p-10 shadow-3xl">
+          <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
+            <div className="flex items-center gap-5">
+              <div className="p-4 bg-indigo-600/10 rounded-2xl border border-indigo-500/20">
+                <FileText className="h-8 w-8 text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Trener Hisoboti (Kunlik Xulosa)</h3>
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">Sening 18 yoshli muvaffaqiyating kundaligi</p>
+              </div>
+            </div>
+            <Button onClick={saveNote} className="rounded-2xl h-14 px-10 bg-indigo-600 hover:bg-indigo-500 text-white font-black gap-3 transition-all shadow-2xl hover:scale-105 active:scale-95">
+              <Save className="h-6 w-6" /> SAQLASH
+            </Button>
+          </div>
+          <Textarea 
+            placeholder="Abubakr, bugun nimalar qilding? Qayerda qiynalding? Millionerlik sari qadamlaringni yoz... Kelajakdagi o'zingga hisobot ber!"
+            className="min-h-[250px] rounded-[2.5rem] bg-black/60 border-white/10 text-xl font-medium p-10 focus:ring-4 focus:ring-indigo-500/30 resize-none transition-all shadow-inner custom-scrollbar"
+            value={noteContent}
+            onChange={(e) => setNoteContent(e.target.value)}
+          />
+        </Card>
+      </div>
+
       {/* Control Center */}
       <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
         <DialogTrigger asChild>
-          <Button className="fixed bottom-12 right-12 h-24 w-24 rounded-[3rem] shadow-[0_0_60px_rgba(79,70,229,0.5)] p-0 z-50 bg-slate-950 border-8 border-indigo-600/40 hover:scale-110 transition-all group overflow-hidden">
-            <Settings className="h-12 w-12 text-indigo-500 group-hover:rotate-180 transition-transform duration-1000" />
+          <Button className="fixed bottom-8 right-8 h-20 w-20 rounded-full shadow-[0_0_40px_rgba(79,70,229,0.4)] p-0 z-50 bg-indigo-600 border-4 border-white/20 hover:scale-110 transition-all group overflow-hidden">
+            <Settings className="h-8 w-8 text-white group-hover:rotate-180 transition-transform duration-700" />
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[550px] rounded-[4rem] p-12 border border-white/10 shadow-4xl bg-slate-950 text-white">
+        <DialogContent className="sm:max-w-[550px] rounded-[3.5rem] p-10 border border-white/10 shadow-4xl bg-slate-950 text-white max-h-[90vh] overflow-y-auto custom-scrollbar">
           <DialogHeader>
             <CardTitle className="text-3xl font-black uppercase text-white tracking-tighter flex items-center gap-5">
               <Brain className="h-10 w-10 text-indigo-500" /> MILLIONAIRE CONTROL
             </CardTitle>
           </DialogHeader>
           <div className="space-y-10 pt-8">
-            <Button onClick={seedDefaultHabits} variant="outline" className="w-full h-20 rounded-3xl font-black border-4 border-indigo-500/20 text-indigo-400 gap-4 hover:bg-indigo-600 hover:text-white transition-all text-xs tracking-[0.2em] uppercase">
-              <Download className="h-6 w-6" /> BLUEPRINTNI YUKLASH (EVROPA)
+            <Button onClick={seedDefaultHabits} variant="outline" className="w-full h-16 rounded-3xl font-black border-2 border-indigo-500/20 text-indigo-400 gap-4 hover:bg-indigo-600 hover:text-white transition-all text-xs tracking-[0.2em] uppercase">
+              <Download className="h-5 w-5" /> BLUEPRINTNI YUKLASH (EVROPA)
             </Button>
             
-            <div className="space-y-6 bg-white/5 p-10 rounded-[3.5rem] border border-white/10 shadow-inner">
+            <div className="space-y-6 bg-white/5 p-8 rounded-[3rem] border border-white/10 shadow-inner">
               <div className="grid gap-4">
                 <Label className="font-black text-[11px] uppercase text-indigo-400 tracking-[0.2em] px-2">Yangi Maqsad Nomi</Label>
-                <Input placeholder="e.g. English speaking..." value={newHabitName} onChange={(e) => setNewHabitName(e.target.value)} className="rounded-2xl border-white/10 bg-black/40 h-16 font-black text-xl px-6" />
+                <Input placeholder="e.g. English speaking..." value={newHabitName} onChange={(e) => setNewHabitName(e.target.value)} className="rounded-2xl border-white/10 bg-black/40 h-14 font-black text-lg px-6" />
               </div>
               <div className="grid gap-4">
                 <Label className="font-black text-[11px] uppercase text-indigo-400 tracking-[0.2em] px-2">Yo'nalish</Label>
                 <Select value={newHabitCategory} onValueChange={(v: any) => setNewHabitCategory(v)}>
-                  <SelectTrigger className="rounded-2xl border-white/10 bg-black/40 h-16 font-black text-xl px-6">
+                  <SelectTrigger className="rounded-2xl border-white/10 bg-black/40 h-14 font-black text-lg px-6">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="rounded-3xl bg-slate-900 border-white/10 text-white">
@@ -563,22 +620,22 @@ export default function KunRejaApp() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleManualAdd} className="w-full h-20 rounded-3xl font-black bg-indigo-600 text-white text-xl shadow-[0_15px_40px_rgba(79,70,229,0.4)] hover:bg-indigo-500 transition-all">
-                <Plus className="mr-4 h-8 w-8" /> MAQSADNI QO'SHISH
+              <Button onClick={handleManualAdd} className="w-full h-16 rounded-3xl font-black bg-indigo-600 text-white text-lg shadow-xl hover:bg-indigo-500 transition-all">
+                <Plus className="mr-3 h-6 w-6" /> MAQSADNI QO'SHISH
               </Button>
             </div>
 
             <div className="space-y-6">
               <p className="font-black text-[11px] uppercase text-slate-500 tracking-[0.2em] px-4">Faol Maqsadlar ({habits.length})</p>
-              <div className="max-h-[250px] overflow-y-auto space-y-4 pr-4 custom-scrollbar">
+              <div className="space-y-4">
                 {habits.map((h) => (
-                  <div key={h.id} className="flex items-center justify-between p-6 bg-white/5 border border-white/5 rounded-3xl group hover:border-white/20 transition-all">
+                  <div key={h.id} className="flex items-center justify-between p-6 bg-white/5 border border-white/5 rounded-3xl group transition-all">
                     <div className="flex flex-col gap-1">
                       <span className="font-black text-lg text-white group-hover:text-indigo-400 transition-colors">{h.name}</span>
                       <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{h.category}</span>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-12 w-12 text-slate-600 hover:text-red-500 rounded-2xl" onClick={() => deleteHabit(h.id)}>
-                      <Trash2 className="h-6 w-6" />
+                    <Button variant="ghost" size="icon" className="h-10 w-10 text-slate-600 hover:text-red-500" onClick={() => deleteHabit(h.id)}>
+                      <Trash2 className="h-5 w-5" />
                     </Button>
                   </div>
                 ))}
@@ -589,8 +646,8 @@ export default function KunRejaApp() {
       </Dialog>
 
       {/* Final Motivational Message */}
-      <div className="flex flex-col items-center justify-center pt-20 space-y-8">
-         <div className="text-center max-w-2xl space-y-6 opacity-80 hover:opacity-100 transition-opacity">
+      <div className="flex flex-col items-center justify-center pt-20 pb-10 space-y-8">
+         <div className="text-center max-w-2xl space-y-6 opacity-80">
            <Trophy className="h-16 w-16 mx-auto text-yellow-500/80 animate-float" />
            <h3 className="text-2xl font-black uppercase tracking-[0.2em] text-white">INSHA'ALLOH, EVROPADA G'OLIB BO'LASAN!</h3>
            <p className="text-[11px] md:text-sm font-black uppercase tracking-[0.3em] leading-relaxed">

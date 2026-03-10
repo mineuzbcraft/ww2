@@ -4,7 +4,6 @@
 import * as React from "react"
 import { 
   CheckCircle2, 
-  Trophy, 
   Settings, 
   Calendar as CalendarIcon, 
   Plus, 
@@ -92,8 +91,8 @@ export default function KunRejaApp() {
   const [newHabitCategory, setNewHabitCategory] = React.useState<Habit['category']>('other')
   const { toast } = useToast()
 
-  // Sening loyihang uchun maxsus ID (Anonymous Auth shart emas)
-  const userId = authUser?.uid || "abubakr_fixed_id"
+  // Anonymous Auth yoqilmagan bo'lsa ham ishlaydigan ID
+  const userId = authUser?.uid || "abubakr_academy_fixed_id"
 
   // Fetch habits from Firestore
   const habitsQuery = useMemoFirebase(() => {
@@ -153,7 +152,7 @@ export default function KunRejaApp() {
     const id = generateId()
     const newHabit: Habit = {
       id,
-      name,
+      name: name.trim(),
       category,
       completedDates: [],
       prayerHistory: category === 'namoz' ? {} : undefined
@@ -174,11 +173,14 @@ export default function KunRejaApp() {
   }
 
   const handleManualAdd = () => {
-    if (!newHabitName.trim()) return
+    if (!newHabitName.trim()) {
+      toast({ title: "Xatolik", description: "Vazifa nomini kiriting!", variant: "destructive" })
+      return
+    }
     addHabit(newHabitName, newHabitCategory)
     setNewHabitName("")
     setIsManageOpen(false)
-    toast({ title: "Muvaffaqiyat", description: "Vazifa qo'shildi!" })
+    toast({ title: "Muvaffaqiyat", description: "Yangi vazifa qo'shildi!" })
   }
 
   const deleteHabit = (id: string) => {
@@ -293,7 +295,7 @@ export default function KunRejaApp() {
                  <CheckCircle2 className="h-3 w-3" /> {selectedDayStats.done} DONE
                </div>
                <div className="bg-red-500 px-4 py-2 rounded-xl text-[10px] font-black text-white uppercase shadow-lg flex items-center gap-2">
-                 <XCircle className="h-3 w-3" /> {selectedDayStats.missed} QAZO
+                 <XCircle className="h-3 w-3" /> {selectedDayStats.missed} MISSED
                </div>
             </div>
           </div>
@@ -363,7 +365,8 @@ export default function KunRejaApp() {
                         return (
                           <div className="bg-slate-900 p-4 rounded-2xl shadow-xl text-white text-[10px]">
                             <p className="font-black uppercase mb-1 border-b border-white/10 pb-1">{data.fullDate}</p>
-                            <p className="font-bold">DONE: {data.done}</p>
+                            <p className="font-bold text-green-400">DONE: {data.done}</p>
+                            <p className="font-bold text-red-400">MISSED: {data.missed}</p>
                             <p className="font-bold">PERCENT: {data.percent}%</p>
                           </div>
                         );
@@ -464,7 +467,7 @@ export default function KunRejaApp() {
       <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
         <DialogTrigger asChild>
           <Button className="fixed bottom-8 right-8 h-16 w-16 rounded-2xl shadow-3xl p-0 z-50 bg-slate-950 border-4 border-white hover:scale-110 transition-all hover:rotate-90">
-            <Settings className="h-8 w-8 text-primary" />
+            <Settings className="h-8 w-8 text-indigo-500" />
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-[450px] rounded-[3rem] p-8 border-none shadow-3xl bg-white">

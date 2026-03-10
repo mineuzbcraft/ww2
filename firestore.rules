@@ -2,7 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Abubakr uchun maxsus: Auth yoqilmagan bo'lsa ham vaqtinchalik hamma o'qishi va yozishi mumkin.
+    // Abubakr uchun maxsus: Hamma o'qishi va yozishi mumkin.
     match /{document=**} {
       allow read, write: if true;
     }

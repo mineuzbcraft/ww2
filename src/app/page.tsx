@@ -23,7 +23,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
-import { Textarea } from "@/components/ui/textarea"
 import { format, startOfToday, subDays, eachDayOfInterval, getDate, isBefore, startOfDay } from "date-fns"
 import { uz } from "date-fns/locale"
 import { Habit, PrayerStatus } from "@/types/kun-reja"
@@ -75,8 +74,12 @@ const DEFAULT_HABITS = [
   { name: "Kitob o'qish (30 bet)", category: "learning" },
 ]
 
-// Barqaror ID generatsiya qilish
-const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
 
 export default function KunRejaApp() {
   const db = useFirestore()
@@ -86,10 +89,8 @@ export default function KunRejaApp() {
   const [newHabitCategory, setNewHabitCategory] = React.useState<Habit['category']>('other')
   const { toast } = useToast()
 
-  // Abubakr uchun maxsus barqaror ID (Auth-siz ham ishlashi uchun)
-  const userId = "abubakr_academy_champion_id"
+  const userId = "abubakr_fixed_id"
 
-  // Firestore-dan odatlarni olish
   const habitsQuery = useMemoFirebase(() => {
     if (!db) return null
     return collection(db, 'users', userId, 'habits')
@@ -98,15 +99,7 @@ export default function KunRejaApp() {
   const { data: habitsRaw, isLoading: isHabitsLoading } = useCollection<Habit>(habitsQuery)
   const habits = habitsRaw || []
 
-  // Kunlik qaydlarni olish
   const dateStr = format(selectedDate, 'yyyy-MM-dd')
-  const notesQuery = useMemoFirebase(() => {
-    if (!db) return null
-    return collection(db, 'users', userId, 'dailyNotes')
-  }, [db, userId])
-  
-  const { data: allNotesRaw } = useCollection<{ content: string, date: string }>(notesQuery)
-  const currentNote = allNotesRaw?.find(n => n.date === dateStr)?.content || ""
 
   const toggleHabit = (id: string, date: string) => {
     if (!db) return
@@ -116,44 +109,48 @@ export default function KunRejaApp() {
     const habitRef = doc(db, 'users', userId, 'habits', id)
     
     if (habit.category === 'namoz') {
-      const currentStatus = (habit.prayerHistory?.[date] || 'todo') as PrayerStatus
+      const currentHistory = habit.prayerHistory || {}
+      const currentStatus = (currentHistory[date] || 'todo') as PrayerStatus
       let nextStatus: PrayerStatus = 'todo'
+      
       if (currentStatus === 'todo') nextStatus = 'ontime'
       else if (currentStatus === 'ontime') nextStatus = 'late'
       else if (currentStatus === 'late') nextStatus = 'missed'
       else nextStatus = 'todo'
       
       updateDocumentNonBlocking(habitRef, {
-        prayerHistory: { ...(habit.prayerHistory || {}), [date]: nextStatus }
+        prayerHistory: { ...currentHistory, [date]: nextStatus }
       })
     } else {
-      const isCompleted = (habit.completedDates || []).includes(date)
+      const currentDates = habit.completedDates || []
+      const isCompleted = currentDates.includes(date)
       const newDates = isCompleted 
-        ? (habit.completedDates || []).filter(d => d !== date)
-        : [...(habit.completedDates || []), date]
+        ? currentDates.filter(d => d !== date)
+        : [...currentDates, date]
       
       updateDocumentNonBlocking(habitRef, { completedDates: newDates })
     }
   }
 
-  const updateNote = (val: string) => {
-    if (!db) return
-    const noteRef = doc(db, 'users', userId, 'dailyNotes', dateStr)
-    setDocumentNonBlocking(noteRef, { content: val, date: dateStr }, { merge: true })
-  }
-
   const addHabit = (name: string, category: Habit['category']) => {
     if (!name.trim() || !db) return
     const id = generateId()
-    const newHabit: Habit = {
-      id,
+    
+    // MUHIM: Firebase undefined qiymatni qabul qilmaydi! 
+    // Faqat kerakli maydonlarni aniq qiymatlar bilan yuboramiz.
+    const newHabitData: any = {
+      id: id,
       name: name.trim(),
-      category,
+      category: category,
       completedDates: [],
-      prayerHistory: category === 'namoz' ? {} : undefined
     }
+
+    if (category === 'namoz') {
+      newHabitData.prayerHistory = {}
+    }
+
     const habitRef = doc(db, 'users', userId, 'habits', id)
-    setDocumentNonBlocking(habitRef, newHabit, { merge: true })
+    setDocumentNonBlocking(habitRef, newHabitData, { merge: true })
   }
 
   const seedDefaultHabits = () => {
@@ -172,10 +169,6 @@ export default function KunRejaApp() {
       toast({ title: "Xatolik", description: "Vazifa nomini kiriting!", variant: "destructive" })
       return
     }
-    if (!db) {
-      toast({ title: "Xatolik", description: "Bazaga ulanib bo'lmadi!", variant: "destructive" })
-      return
-    }
     addHabit(newHabitName, newHabitCategory)
     setNewHabitName("")
     setIsManageOpen(false)
@@ -186,7 +179,6 @@ export default function KunRejaApp() {
     if (!db) return
     const habitRef = doc(db, 'users', userId, 'habits', id)
     deleteDocumentNonBlocking(habitRef)
-    toast({ title: "O'chirildi", description: "Vazifa olib tashlandi." })
   }
 
   const getStatsForDate = (date: Date) => {
@@ -249,12 +241,12 @@ export default function KunRejaApp() {
   const isPastDate = isBefore(startOfDay(selectedDate), startOfDay(new Date()))
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8 max-w-[1200px] mx-auto space-y-8 pb-20 font-body">
+    <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8 max-w-[1200px] mx-auto space-y-8 pb-20">
       
       {/* Header Section */}
-      <Card className="border-none shadow-2xl bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-[#020617] text-white overflow-hidden rounded-[3rem] relative group">
-        <CardContent className="p-8 md:p-12 relative z-10 flex flex-col md:flex-row items-center gap-8">
-          <div className="bg-indigo-500/20 p-6 rounded-[2.5rem] shadow-2xl backdrop-blur-3xl border border-white/10">
+      <Card className="border-none shadow-2xl bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-[#020617] text-white overflow-hidden rounded-[3rem]">
+        <CardContent className="p-8 md:p-12 flex flex-col md:flex-row items-center gap-8">
+          <div className="bg-indigo-500/20 p-6 rounded-[2.5rem] border border-white/10">
             <UserCheck className="h-16 w-16 text-indigo-400" />
           </div>
           <div className="space-y-4 text-center md:text-left flex-1">
@@ -276,7 +268,6 @@ export default function KunRejaApp() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
           
-          {/* Daily Status Header */}
           <div className="flex flex-col md:flex-row items-center justify-between bg-white p-6 rounded-[2.5rem] shadow-xl border-b-4 border-slate-100 gap-6">
             <div className="flex items-center gap-6">
               <div className="bg-primary/10 p-3 rounded-2xl">
@@ -299,7 +290,6 @@ export default function KunRejaApp() {
             </div>
           </div>
 
-          {/* Habits Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {habits.map((h) => {
               const isNamoz = h.category === 'namoz'
@@ -330,7 +320,7 @@ export default function KunRejaApp() {
                     <h3 className="text-lg font-black text-slate-800">{h.name}</h3>
                   </div>
                   <div className={cn(
-                    "h-10 w-10 rounded-xl flex items-center justify-center border-2 transition-all",
+                    "h-10 w-10 rounded-xl flex items-center justify-center border-2",
                     status === 'ontime' || status === 'done' ? "bg-green-500 border-green-600 text-white" :
                     status === 'late' ? "bg-yellow-500 border-yellow-600 text-white" :
                     status === 'missed' ? "bg-red-500 border-red-600 text-white" : "bg-slate-50 border-slate-100"
@@ -344,7 +334,6 @@ export default function KunRejaApp() {
             })}
           </div>
 
-          {/* Performance Chart */}
           <Card className="rounded-[3rem] border-none shadow-xl bg-white p-8">
             <CardHeader className="p-0 pb-6">
               <CardTitle className="text-xl font-black flex items-center gap-4 uppercase tracking-tighter text-slate-900">
@@ -378,29 +367,11 @@ export default function KunRejaApp() {
               </ResponsiveContainer>
             </div>
           </Card>
-
-          {/* Note Section */}
-          <Card className="rounded-[3rem] border-none shadow-xl bg-white overflow-hidden border-l-[12px] border-indigo-600">
-            <CardHeader className="p-6 pb-2">
-              <CardTitle className="text-xl font-black flex items-center gap-3 uppercase text-slate-900 tracking-tighter">
-                <Activity className="h-6 w-6 text-primary" /> TRENER HISOBOTI
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 pt-0">
-              <Textarea 
-                placeholder="Bugun nima ishlar qilding chempion? Alloh barchasini ko'rib turibdi..."
-                className="min-h-[140px] rounded-2xl border-slate-100 bg-slate-50 font-bold text-base p-6 focus:ring-4 focus:ring-indigo-500/10 resize-none shadow-inner"
-                value={currentNote}
-                onChange={(e) => updateNote(e.target.value)}
-              />
-            </CardContent>
-          </Card>
         </div>
 
         <div className="lg:col-span-4 space-y-8">
-          {/* Statistics Card */}
           <Card className={cn(
-            "rounded-[3rem] border-none shadow-xl overflow-hidden relative group",
+            "rounded-[3rem] border-none shadow-xl overflow-hidden",
             selectedDayStats.percent === 100 ? "bg-indigo-600 text-white" : "bg-white text-slate-900"
           )}>
             <CardHeader className="p-6 pb-2">
@@ -415,7 +386,7 @@ export default function KunRejaApp() {
                   {selectedDayStats.done}/{habits.length} DONE
                 </div>
               </div>
-              <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner border border-slate-50">
+              <div className="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-indigo-500 rounded-full transition-all duration-1000"
                   style={{ width: `${selectedDayStats.percent}%` }}
@@ -424,7 +395,6 @@ export default function KunRejaApp() {
             </CardContent>
           </Card>
 
-          {/* Calendar Card */}
           <Card className="rounded-[3rem] border-none shadow-xl bg-white p-4">
             <Calendar
               mode="single"
@@ -442,11 +412,10 @@ export default function KunRejaApp() {
             />
           </Card>
 
-          {/* Motivation Sidebar */}
           <div className="space-y-4">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4">Motivation Quotes</p>
             {MOTIVATIONS.map((m, i) => (
-              <Card key={i} className="bg-white border-none shadow-md rounded-[1.5rem] hover:scale-[1.03] transition-all border-l-4 border-indigo-50 hover:border-indigo-600">
+              <Card key={i} className="bg-white border-none shadow-md rounded-[1.5rem] border-l-4 border-indigo-50 hover:border-indigo-600 transition-all">
                 <CardContent className="p-5 flex items-start gap-4">
                   <div className="bg-slate-100 p-2 rounded-xl">
                     <TrendingUp className="h-4 w-4 text-indigo-600" />
@@ -462,10 +431,9 @@ export default function KunRejaApp() {
         </div>
       </div>
 
-      {/* Floating Settings Button */}
       <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
         <DialogTrigger asChild>
-          <Button className="fixed bottom-8 right-8 h-16 w-16 rounded-2xl shadow-3xl p-0 z-50 bg-slate-950 border-4 border-white hover:scale-110 transition-all hover:rotate-90">
+          <Button className="fixed bottom-8 right-8 h-16 w-16 rounded-2xl shadow-3xl p-0 z-50 bg-slate-950 border-4 border-white hover:scale-110 transition-all">
             <Settings className="h-8 w-8 text-indigo-500" />
           </Button>
         </DialogTrigger>
@@ -507,12 +475,12 @@ export default function KunRejaApp() {
               <p className="font-black text-[10px] uppercase text-slate-500 px-2">Vazifalar ({habits.length})</p>
               <div className="max-h-[150px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                 {habits.map((h) => (
-                  <div key={h.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-red-100 transition-all">
+                  <div key={h.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm">
                     <div className="flex flex-col">
                       <span className="font-black text-sm text-slate-800">{h.name}</span>
                       <span className="text-[8px] font-bold text-slate-400 uppercase">{h.category}</span>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" onClick={() => deleteHabit(h.id)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-500" onClick={() => deleteHabit(h.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

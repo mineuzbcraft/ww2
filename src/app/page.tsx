@@ -84,6 +84,13 @@ const DEFAULT_HABITS = [
   { name: "Kitob o'qish (30 bet)", category: "learning" },
 ]
 
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
 export default function KunRejaApp() {
   const db = useFirestore()
   const { user, isUserLoading, auth } = useUser()
@@ -157,7 +164,7 @@ export default function KunRejaApp() {
 
   const addHabit = (name: string, category: Habit['category']) => {
     if (!name.trim() || !user || !db) return
-    const id = crypto.randomUUID()
+    const id = generateId()
     const newHabit: Habit = {
       id,
       name,
@@ -172,7 +179,7 @@ export default function KunRejaApp() {
   const seedDefaultHabits = () => {
     if (!user || !db) return
     DEFAULT_HABITS.forEach(h => {
-      const exists = habits.some(existing => existing.name === h.name)
+      const exists = habits.some(existing => existing.name.toLowerCase() === h.name.toLowerCase())
       if (!exists) {
         addHabit(h.name, h.category as Habit['category'])
       }
@@ -180,10 +187,22 @@ export default function KunRejaApp() {
     toast({ title: "Muvaffaqiyat", description: "Barcha standart vazifalar yuklandi!" })
   }
 
+  // Auto-seed if user has no habits and is logged in
+  React.useEffect(() => {
+    if (!isHabitsLoading && habits.length === 0 && user && db) {
+      seedDefaultHabits()
+    }
+  }, [isHabitsLoading, habits.length, user, db])
+
   const handleManualAdd = () => {
     if (!newHabitName.trim()) return
+    if (!user || !db) {
+      toast({ title: "Xatolik", description: "Tizimga kirilmagan yoki baza yuklanmagan.", variant: "destructive" })
+      return
+    }
     addHabit(newHabitName, newHabitCategory)
     setNewHabitName("")
+    setIsManageOpen(false)
     toast({ title: "Muvaffaqiyat", description: "Yangi vazifa qo'shildi!" })
   }
 
@@ -255,7 +274,6 @@ export default function KunRejaApp() {
   return (
     <div className="min-h-screen bg-[#f1f5f9] p-4 md:p-8 max-w-[1400px] mx-auto space-y-8 animate-in fade-in duration-500 pb-32 font-body">
       
-      {/* 🚀 ELITE CHAMPION BANNER */}
       <Card className="border-none shadow-2xl bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-[#020617] text-white overflow-hidden rounded-[3.5rem] relative group border-b-[15px] border-primary/40">
         <div className="absolute top-0 right-0 p-12 opacity-5 rotate-12 group-hover:scale-125 transition-transform duration-1000">
           <Trophy className="h-64 w-64" />
@@ -285,7 +303,6 @@ export default function KunRejaApp() {
         </CardContent>
       </Card>
 
-      {/* 🧠 TOP MOTIVATION GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {MOTIVATIONS.slice(0, 3).map((m, i) => (
           <Card key={i} className="bg-white border-none shadow-2xl rounded-[2.5rem] hover:-translate-y-3 transition-all duration-500 overflow-hidden group">
@@ -378,7 +395,7 @@ export default function KunRejaApp() {
             <CardHeader className="p-0 pb-10 flex flex-row items-center justify-between">
               <CardTitle className="text-2xl font-black flex items-center gap-5 uppercase tracking-tighter text-slate-900">
                 <BarChart3 className="h-8 w-8 text-primary" />
-                CHAMPION PERFORMANCE LOG (Done vs Missed)
+                CHAMPION PERFORMANCE LOG
               </CardTitle>
             </CardHeader>
             <div className="h-80 w-full">

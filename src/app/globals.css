@@ -39,7 +39,7 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   @apply bg-transparent;
@@ -48,7 +48,6 @@
   @apply bg-indigo-900/40 rounded-full;
 }
 
-/* Optimized Animations for iPhone 7 (Less CPU intensive) */
 @keyframes float {
   0% { transform: translateY(0px); }
   50% { transform: translateY(-5px); }

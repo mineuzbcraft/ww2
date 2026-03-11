@@ -240,10 +240,14 @@ export default function KunRejaApp() {
       else if (status === 'missed') missedCount += 1
     })
 
+    // Calculate missed relative to total for the stacked bar
+    // If total is 10 and done is 3, then missed is 7.
+    missedCount = Math.max(0, total - Math.floor(doneCount));
+
     return {
       percent: Math.round((doneCount / (total || 1)) * 100),
-      done: Math.floor(doneCount),
-      missed: Math.ceil(missedCount),
+      done: doneCount,
+      missed: missedCount,
       total
     }
   }
@@ -368,7 +372,7 @@ export default function KunRejaApp() {
                  <ShieldCheck className={cn("h-8 w-8", isFailDay ? "text-red-400" : "text-green-400")} /> 
                  <div>
                    <div className="text-[11px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">Mission Progress</div>
-                   <div className="text-3xl font-black">{selectedDayStats.done}/{habits.length}</div>
+                   <div className="text-3xl font-black">{Math.floor(selectedDayStats.done)}/{habits.length}</div>
                  </div>
                </div>
             </div>
@@ -447,7 +451,7 @@ export default function KunRejaApp() {
             })}
           </div>
 
-          {/* Efficiency History */}
+          {/* Efficiency History - Stacked Bar Chart */}
           <Card className="rounded-[4rem] border border-white/5 bg-slate-900/40 p-12 shadow-3xl">
             <CardHeader className="p-0 pb-12">
               <CardTitle className="text-3xl font-black flex items-center gap-5 uppercase tracking-tighter text-white">
@@ -459,19 +463,29 @@ export default function KunRejaApp() {
                 <BarChart data={historyData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 14, fontWeight: '900', fill: '#64748b'}} />
-                  <YAxis hide />
+                  <YAxis hide domain={[0, habits.length || 1]} />
                   <Tooltip 
                     cursor={{fill: '#ffffff05'}}
                     content={({ active, payload }) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
+                        const isFailed = data.percent === 0;
                         return (
-                          <div className="bg-slate-950/95 backdrop-blur-lg border border-white/10 p-6 rounded-[2rem] shadow-4xl text-white">
-                            <p className="font-black uppercase mb-3 border-b border-white/10 pb-3 text-indigo-300 tracking-[0.2em] text-xs">{data.fullDate}</p>
+                          <div className={cn(
+                            "backdrop-blur-lg border p-6 rounded-[2rem] shadow-4xl text-white",
+                            isFailed ? "bg-red-950/95 border-red-500/30" : "bg-slate-950/95 border-white/10"
+                          )}>
+                            <p className={cn(
+                              "font-black uppercase mb-3 border-b pb-3 tracking-[0.2em] text-xs",
+                              isFailed ? "text-red-400 border-red-500/20" : "text-indigo-300 border-white/10"
+                            )}>{data.fullDate}</p>
                             <div className="space-y-2">
-                              <p className="font-bold flex items-center gap-3"><div className="h-3 w-3 rounded-full bg-green-500" /> SUCCESS: {data.done}</p>
+                              <p className="font-bold flex items-center gap-3"><div className="h-3 w-3 rounded-full bg-indigo-500" /> SUCCESS: {Math.floor(data.done)}</p>
                               <p className="font-bold flex items-center gap-3"><div className="h-3 w-3 rounded-full bg-red-500" /> FAILED: {data.missed}</p>
-                              <div className="mt-4 pt-4 border-t border-white/10 text-2xl font-black text-indigo-400">{data.percent}% ACHIEVED</div>
+                              <div className={cn(
+                                "mt-4 pt-4 border-t text-2xl font-black",
+                                isFailed ? "border-red-500/20 text-red-500" : "border-white/10 text-indigo-400"
+                              )}>{data.percent}% ACHIEVED</div>
                             </div>
                           </div>
                         );
@@ -479,13 +493,22 @@ export default function KunRejaApp() {
                       return null;
                     }}
                   />
-                  <Bar dataKey="done" radius={[12, 12, 0, 0]}>
-                    {historyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.percent === 0 ? "#ef4444" : entry.percent >= 80 ? "#4f46e5" : "#6366f1"} />
-                    ))}
-                  </Bar>
+                  {/* Done Bar */}
+                  <Bar dataKey="done" stackId="a" fill="#4f46e5" radius={historyData.some(d => d.missed === 0) ? [12, 12, 0, 0] : [0, 0, 0, 0]} />
+                  {/* Missed Bar */}
+                  <Bar dataKey="missed" stackId="a" fill="#ef4444" radius={[12, 12, 0, 0]} minPointSize={10} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            <div className="mt-8 flex justify-center gap-10">
+               <div className="flex items-center gap-3">
+                 <div className="h-4 w-4 rounded-full bg-indigo-500" />
+                 <span className="text-[10px] font-black uppercase text-indigo-300 tracking-widest">G'alaba (Done)</span>
+               </div>
+               <div className="flex items-center gap-3">
+                 <div className="h-4 w-4 rounded-full bg-red-500" />
+                 <span className="text-[10px] font-black uppercase text-red-400 tracking-widest">Mag'lubiyat (Missed)</span>
+               </div>
             </div>
           </Card>
         </div>
@@ -522,7 +545,7 @@ export default function KunRejaApp() {
                 </div>
                 <p className="text-[11px] font-black text-center uppercase tracking-[0.2em] text-indigo-100">
                   {selectedDayStats.percent === 100 ? "ALLOH SENGADAN ROZI BO'LSIN, CHEMPION!" : 
-                   selectedDayStats.percent >= 80 ? "EVROPA SARI TO'G'RI YO'LDASAN!" : 
+                   selectedDayStats.percent >= 80 ? "EVROPA SARI TO'G'RI YO'LDASAS!" : 
                    selectedDayStats.percent > 0 ? "RONALDO BO'LAMAN DESANG, TUR O'RNINGDAN!" : "ABUBAKR, MILLIONERLIKNI UNUTDINGMI?"}
                 </p>
               </div>
@@ -556,7 +579,7 @@ export default function KunRejaApp() {
         </div>
       </div>
 
-      {/* Daily Notes / Trainer Report Section - MOVED TO THE VERY BOTTOM */}
+      {/* Daily Notes / Trainer Report Section - AT THE VERY BOTTOM */}
       <div className="mt-12 animate-in slide-in-from-bottom duration-1000">
         <Card className="rounded-[3.5rem] border border-white/10 bg-slate-900/40 p-10 shadow-3xl">
           <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">

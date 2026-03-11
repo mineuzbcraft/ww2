@@ -240,8 +240,6 @@ export default function KunRejaApp() {
       else if (status === 'missed') missedCount += 1
     })
 
-    // Calculate missed relative to total for the stacked bar
-    // If total is 10 and done is 3, then missed is 7.
     missedCount = Math.max(0, total - Math.floor(doneCount));
 
     return {
@@ -451,7 +449,7 @@ export default function KunRejaApp() {
             })}
           </div>
 
-          {/* Efficiency History - Stacked Bar Chart */}
+          {/* Efficiency History */}
           <Card className="rounded-[4rem] border border-white/5 bg-slate-900/40 p-12 shadow-3xl">
             <CardHeader className="p-0 pb-12">
               <CardTitle className="text-3xl font-black flex items-center gap-5 uppercase tracking-tighter text-white">
@@ -493,9 +491,7 @@ export default function KunRejaApp() {
                       return null;
                     }}
                   />
-                  {/* Done Bar */}
                   <Bar dataKey="done" stackId="a" fill="#4f46e5" radius={historyData.some(d => d.missed === 0) ? [12, 12, 0, 0] : [0, 0, 0, 0]} />
-                  {/* Missed Bar */}
                   <Bar dataKey="missed" stackId="a" fill="#ef4444" radius={[12, 12, 0, 0]} minPointSize={10} />
                 </BarChart>
               </ResponsiveContainer>
@@ -516,7 +512,6 @@ export default function KunRejaApp() {
         {/* Sidebar */}
         <div className="lg:col-span-4 space-y-12">
           
-          {/* Main Index Card */}
           <Card className={cn(
             "rounded-[4rem] border border-white/10 shadow-4xl overflow-hidden transition-all duration-700",
             isFailDay ? "bg-red-950 border-red-500/30" :
@@ -552,7 +547,6 @@ export default function KunRejaApp() {
             </CardContent>
           </Card>
 
-          {/* Motivation Feed */}
           <div className="space-y-6">
             <div className="flex items-center justify-between px-6">
               <p className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.4em]">TRENER VA RONALDO MASLAHATI</p>
@@ -579,7 +573,7 @@ export default function KunRejaApp() {
         </div>
       </div>
 
-      {/* Daily Notes / Trainer Report Section - AT THE VERY BOTTOM */}
+      {/* Daily Notes / Trainer Report Section */}
       <div className="mt-12 animate-in slide-in-from-bottom duration-1000">
         <Card className="rounded-[3.5rem] border border-white/10 bg-slate-900/40 p-10 shadow-3xl">
           <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">

@@ -27,19 +27,17 @@ import {
   Brain,
   Globe,
   Languages,
-  ArrowUpRight,
   Sparkles,
-  Quote,
-  Flag,
-  Rocket,
   FileText,
   Save,
   AlertTriangle,
-  HandMetal
+  HandMetal,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { format, startOfToday, subDays, eachDayOfInterval, getDate, isBefore, startOfDay } from "date-fns"
+import { format, startOfToday, subDays, eachDayOfInterval, getDate, isBefore, startOfDay, startOfMonth, endOfMonth } from "date-fns"
 import { uz } from "date-fns/locale"
 import { Habit, PrayerStatus } from "@/types/kun-reja"
 import { cn } from "@/lib/utils"
@@ -50,7 +48,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -75,11 +78,6 @@ const MOTIVATIONS = [
   { text: "Ingliz tilini o'rgan, Evropada Ronaldodek bo'lasan! SIUUU!", category: "ronaldo" },
   { text: "Harakatdan to'xtama! Alloh yordam bermasa, biz hech kimmiz.", category: "faith" },
   { text: "Bugungi og'riq — ertangi millionerlik rohati. Sabr qil va tinmasdan ishla!", category: "mindset" },
-  { text: "Discipline — bu sening 18 yoshdagi erkinliging chiptasidir.", category: "mindset" },
-  { text: "Insha'Allah, sening ismingni butun dunyo taniydi. Faqat harakat qil!", category: "vision" },
-  { text: "Tinmasdan Allohdan so'ra! Duo — bu sening eng kuchli qurolingdir.", category: "faith" },
-  { text: "Bugungi ingliz tili — ertangi London yoki Dubay safari.", category: "learning" },
-  { text: "Abubakr, uxlama! Evropada millioner bo'lish uchun bugun uyg'oq bo'lishing shart!", category: "action" },
 ]
 
 const DEFAULT_HABITS = [
@@ -132,7 +130,7 @@ export default function KunRejaApp() {
     } else {
       setNoteContent("")
     }
-  }, [noteData])
+  }, [noteData, dateStr])
 
   const saveNote = () => {
     if (!db || !noteRef) return
@@ -236,7 +234,6 @@ export default function KunRejaApp() {
       else if (status === 'missed') missedCount += 1
     })
 
-    // To make sure total = done + missed visually in stacked bar
     missedCount = Math.max(0, total - Math.floor(doneCount));
 
     return {
@@ -249,36 +246,30 @@ export default function KunRejaApp() {
 
   const selectedDayStats = React.useMemo(() => getStatsForDate(selectedDate), [habits, selectedDate])
 
+  // To'liq bir oylik grafik ma'lumotlari
   const historyData = React.useMemo(() => {
-    const today = startOfToday()
-    const days = eachDayOfInterval({ start: subDays(today, 6), end: today })
+    const start = startOfMonth(selectedDate)
+    const end = endOfMonth(selectedDate)
+    const days = eachDayOfInterval({ start, end })
+    
     return days.map(date => {
       const stats = getStatsForDate(date)
       return {
-        name: getDate(date).toString(),
+        name: format(date, 'd'), // Faqat kun raqami (1, 2, 3...)
         fullDate: format(date, 'd-MMMM', { locale: uz }),
         done: stats.done,
         missed: stats.missed,
         percent: stats.percent
       }
     })
-  }, [habits])
+  }, [habits, selectedDate])
 
-  const getRank = (percent: number) => {
-    if (percent >= 95) return { title: "LEGENDARY CHAMPION", color: "text-yellow-400", icon: Crown }
-    if (percent >= 80) return { title: "FUTURE MILLIONAIRE", color: "text-indigo-400", icon: Rocket }
-    if (percent >= 60) return { title: "EUROPEAN STAR", color: "text-emerald-400", icon: Globe }
-    if (percent >= 30) return { title: "STRUGGLING WARRIOR", color: "text-blue-400", icon: Sword }
-    return { title: "WAKE UP, ABUBAKR!", color: "text-slate-500", icon: Loader2 }
-  }
-
-  const currentRank = getRank(selectedDayStats.percent)
   const isPastDate = isBefore(startOfDay(selectedDate), startOfDay(new Date()))
   const isFailDay = isPastDate && selectedDayStats.percent === 0 && habits.length > 0
 
   if (isHabitsLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-[#020617]">
         <div className="text-center space-y-4">
           <Loader2 className="h-16 w-16 text-indigo-500 mx-auto animate-spin" />
           <p className="font-black text-white uppercase tracking-widest animate-pulse">BISMILLAH...</p>
@@ -293,7 +284,7 @@ export default function KunRejaApp() {
       isFailDay ? "bg-red-950/20" : "bg-[#020617]"
     )}>
       
-      {/* Top Coach Banner */}
+      {/* Top Banner */}
       <div className={cn(
         "border-y py-6 px-6 rounded-3xl flex flex-col md:flex-row items-center justify-center gap-4 animate-in fade-in duration-700",
         isFailDay ? "bg-red-600/20 border-red-500/30" : "bg-indigo-600/20 border-indigo-500/30"
@@ -301,13 +292,13 @@ export default function KunRejaApp() {
          <div className="flex items-center gap-3 text-center">
             <Brain className={cn("h-6 w-6 shrink-0", isFailDay ? "text-red-400" : "text-indigo-400")} />
             <p className="text-[12px] md:text-sm font-black uppercase tracking-[0.2em]">
-              {isFailDay ? "ABUBAKR, MILLIONERLIKNI UNUTDINGMI? TUR O'RNINGDAN!" : "ABUBAKR, TINMASDAN ALLOHDAN SO'RA! 18 YOSHDA MILLIONER BO'LASAN!"}
+              {isFailDay ? "ABUBAKR, MILLIONERLIKNI UNUTDINGMI? TUR O'RNINGDAN!" : "ABUBAKR, ALLOHNI UNUTMA! 18 YOSHDA MILLIONER BO'LASAN!"}
             </p>
             <Brain className={cn("h-6 w-6 shrink-0", isFailDay ? "text-red-400" : "text-indigo-400")} />
          </div>
       </div>
 
-      {/* Hero Section */}
+      {/* Hero */}
       <Card className={cn(
         "border-none overflow-hidden rounded-[4rem] transition-all duration-700 shadow-2xl",
         isFailDay ? "bg-gradient-to-br from-red-950 via-red-900 to-black" : 
@@ -315,44 +306,21 @@ export default function KunRejaApp() {
         "bg-gradient-to-br from-[#020617] via-[#1e1b4b] to-[#020617]"
       )}>
         <CardContent className="p-8 md:p-16 flex flex-col md:flex-row items-center gap-12 relative">
-          <div className="absolute top-4 right-8 md:right-16 hidden md:flex items-center gap-3">
-             <Star className="h-5 w-5 text-yellow-400 fill-current" />
-             <span className="text-[10px] font-black uppercase tracking-widest text-yellow-200">INSHA'ALLOH: MILLIONER</span>
-          </div>
-          <div className="relative group">
-            <div className={cn("absolute inset-0 blur-3xl opacity-20", isFailDay ? "bg-red-500" : "bg-indigo-500")} />
-            <div className={cn(
-              "relative p-10 rounded-[3.5rem] border border-white/20 shadow-2xl transition-transform duration-500",
-              isFailDay ? "bg-gradient-to-br from-red-600 to-red-900" : "bg-gradient-to-br from-indigo-500 to-purple-700"
-            )}>
-              {isFailDay ? <AlertTriangle className="h-24 w-24 text-white" /> : <Trophy className="h-24 w-24 text-yellow-300 drop-shadow-[0_0_25px_rgba(253,224,71,0.6)] animate-float" />}
-              {selectedDayStats.percent >= 95 && !isFailDay && <Crown className="absolute -top-6 -right-6 h-12 w-12 text-yellow-400" />}
-            </div>
+          <div className="relative p-10 rounded-[3.5rem] border border-white/20 shadow-2xl bg-gradient-to-br from-indigo-500 to-purple-700 group transition-transform duration-500 hover:scale-105">
+            {isFailDay ? <AlertTriangle className="h-24 w-24 text-white" /> : <Trophy className="h-24 w-24 text-yellow-300 animate-float" />}
+            {selectedDayStats.percent >= 95 && !isFailDay && <Crown className="absolute -top-6 -right-6 h-12 w-12 text-yellow-400" />}
           </div>
           <div className="space-y-6 text-center md:text-left flex-1">
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-2">
-              <div className={cn(
-                "px-4 py-1.5 rounded-full border flex items-center gap-2",
-                isFailDay ? "bg-red-500/20 border-red-500/30 text-red-200" : "bg-orange-500/20 border-orange-500/30 text-orange-200"
-              )}>
-                <Flame className={cn("h-4 w-4", isFailDay ? "text-red-500" : "text-orange-500")} />
-                <span className="text-[10px] font-black tracking-widest uppercase">{isFailDay ? "MAS'ULIYATSIZLIK!" : "TINMASDAN HARAKAT QIL!"}</span>
-              </div>
-            </div>
             <h1 className="text-4xl md:text-7xl font-black tracking-tighter uppercase leading-[1.0] bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-200 to-indigo-500">
-              {isFailDay ? "MAG'LUBIYAT KUNI!" : "ABUBAKR, HARAKAT QIL!"} <br/><span className={cn("text-2xl md:text-4xl", isFailDay ? "text-red-400" : "text-indigo-400")}>NAMOZ O'QI VA ALLOHDAN SO'RA!</span>
+              {isFailDay ? "MAG'LUBIYAT!" : "ABUBAKR, ALLOHDAN SO'RA!"} <br/>
+              <span className={cn("text-2xl md:text-4xl", isFailDay ? "text-red-400" : "text-indigo-400")}>EVROPA VA MILLIONERLIK SENIKI!</span>
             </h1>
-            <p className="text-sm md:text-xl font-black text-indigo-300 uppercase tracking-[0.1em] max-w-2xl mx-auto md:mx-0 opacity-90 mt-4">
-              {isFailDay ? "AGAR SHUNDAY DAVOM ETSANG, HECH QACHON MILLIONER BO'LA OLMAYSAN!" : "INSHA'ALLOH, 18 YOSHGACHA O'ZBEKISTONDAN CHIQIB KETASAN! MILLIONERLIK SENI KUTMOQDA!"}
-            </p>
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 pt-4">
-               <div className="bg-white/5 backdrop-blur-lg border border-white/10 px-8 py-5 rounded-[2.5rem] flex items-center gap-4 shadow-2xl">
-                 <Zap className={cn("h-8 w-8", isFailDay ? "text-red-500" : "text-yellow-400 fill-current")} /> 
-                 <div>
-                   <div className="text-[11px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">Success Power</div>
-                   <div className="text-3xl font-black">{selectedDayStats.percent}%</div>
-                 </div>
-               </div>
+            <div className="bg-white/5 backdrop-blur-lg border border-white/10 px-8 py-5 rounded-[2.5rem] inline-flex items-center gap-4 shadow-2xl">
+              <Zap className={cn("h-8 w-8", isFailDay ? "text-red-500" : "text-yellow-400 fill-current")} /> 
+              <div>
+                <div className="text-[11px] font-black text-indigo-300 uppercase tracking-widest leading-none mb-1">INTIZOM KUCHI</div>
+                <div className="text-3xl font-black">{selectedDayStats.percent}%</div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -361,17 +329,32 @@ export default function KunRejaApp() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         <div className="lg:col-span-8 space-y-12">
           
-          {/* Daily Status Header */}
+          {/* Header & Date Selector */}
           <div className="flex flex-col md:flex-row items-center justify-between bg-slate-900/40 backdrop-blur-lg p-10 rounded-[3.5rem] shadow-3xl border border-white/5 gap-8">
             <div className="flex items-center gap-8 text-center md:text-left">
-              <div className="bg-indigo-600/10 p-5 rounded-3xl border border-indigo-500/20">
-                <CalendarIcon className="h-12 w-12 text-indigo-400" />
-              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="bg-indigo-600/10 p-5 rounded-3xl border border-indigo-500/20 h-auto group hover:bg-indigo-600/20 transition-all">
+                    <CalendarIcon className="h-10 w-10 text-indigo-400" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 rounded-[2rem] border-white/10 bg-[#020617] shadow-4xl" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={(date) => date && setSelectedDate(date)}
+                    initialFocus
+                    locale={uz}
+                    showOutsideDays={false}
+                    className="p-4"
+                  />
+                </PopoverContent>
+              </Popover>
               <div>
-                 <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none">
+                 <h2 className="text-3xl font-black text-white uppercase tracking-tighter">
                   {format(selectedDate, 'd-MMMM', { locale: uz })}
                  </h2>
-                 <p className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.3em] mt-2">Bugungi Jang Rejasi</p>
+                 <p className="text-[11px] font-black text-indigo-400 uppercase tracking-widest mt-1">G'alaba kalendari (Oyni o'zgartirish uchun kalendardan foydalan)</p>
               </div>
             </div>
             <div className="bg-indigo-500/10 border border-indigo-500/20 px-8 py-4 rounded-3xl text-[12px] font-black text-indigo-400 uppercase flex items-center gap-3">
@@ -379,7 +362,7 @@ export default function KunRejaApp() {
             </div>
           </div>
 
-          {/* Missions Grid */}
+          {/* Habits Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
             {habits.map((h) => {
               const isNamoz = h.category === 'namoz'
@@ -393,7 +376,7 @@ export default function KunRejaApp() {
                   key={h.id}
                   onClick={() => toggleHabit(h.id, dateStr)}
                   className={cn(
-                    "flex items-center justify-between p-8 rounded-[3rem] border-2 transition-all text-left shadow-2xl hover:scale-[1.01] active:scale-95 group",
+                    "flex items-center justify-between p-8 rounded-[3rem] border-2 transition-all shadow-2xl hover:scale-[1.01] active:scale-95 text-left group",
                     status === 'ontime' || status === 'done' ? "bg-green-500/10 border-green-500/30 text-green-500" : 
                     status === 'late' ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-500" :
                     status === 'missed' ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-slate-900/40 border-white/5 hover:border-white/20 text-slate-400"
@@ -411,10 +394,10 @@ export default function KunRejaApp() {
                     <h3 className="text-xl font-black tracking-tight leading-none group-hover:text-white transition-colors">{h.name}</h3>
                   </div>
                   <div className={cn(
-                    "h-16 w-16 rounded-[1.5rem] flex items-center justify-center border-2 transition-all shadow-xl",
+                    "h-16 w-16 rounded-[1.5rem] flex items-center justify-center border-2 shadow-xl",
                     status === 'ontime' || status === 'done' ? "bg-green-500 border-green-400 text-white" :
                     status === 'late' ? "bg-yellow-500 border-yellow-400 text-white" :
-                    status === 'missed' ? "bg-red-500 border-red-400 text-white" : "bg-slate-800 border-white/5 group-hover:border-white/20"
+                    status === 'missed' ? "bg-red-500 border-red-400 text-white" : "bg-slate-800 border-white/5"
                   )}>
                     {status === 'ontime' || status === 'done' ? <ShieldCheck className="h-8 w-8" /> :
                      status === 'late' ? <Clock className="h-8 w-8" /> :
@@ -425,18 +408,18 @@ export default function KunRejaApp() {
             })}
           </div>
 
-          {/* Efficiency History */}
-          <Card className="rounded-[4rem] border border-white/5 bg-slate-900/40 p-12 shadow-3xl">
-            <CardHeader className="p-0 pb-12">
-              <CardTitle className="text-3xl font-black flex items-center gap-5 uppercase tracking-tighter text-white">
-                <BarChart3 className="h-10 w-10 text-indigo-500" /> Millionaire Path Progress
+          {/* Full Month Chart */}
+          <Card className="rounded-[4rem] border border-white/5 bg-slate-900/40 p-10 shadow-3xl">
+            <CardHeader className="p-0 pb-10">
+              <CardTitle className="text-2xl font-black flex items-center gap-4 uppercase tracking-tighter text-white">
+                <BarChart3 className="h-8 w-8 text-indigo-500" /> {format(selectedDate, 'MMMM', { locale: uz })} Oyi Progressi
               </CardTitle>
             </CardHeader>
             <div className="h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={historyData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff05" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 14, fontWeight: '900', fill: '#64748b'}} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 9, fontWeight: '900', fill: '#64748b'}} interval={0} />
                   <YAxis hide domain={[0, habits.length || 1]} />
                   <Tooltip 
                     cursor={{fill: '#ffffff05'}}
@@ -444,67 +427,64 @@ export default function KunRejaApp() {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
-                          <div className="backdrop-blur-lg border bg-slate-950/95 border-white/10 p-6 rounded-[2rem] shadow-4xl text-white">
-                            <p className="font-black uppercase mb-3 border-b border-white/10 pb-3 tracking-[0.2em] text-xs text-indigo-300">{data.fullDate}</p>
-                            <p className="font-bold flex items-center gap-3"><div className="h-3 w-3 rounded-full bg-indigo-500" /> G'ALABA: {Math.floor(data.done)}</p>
-                            <p className="font-bold flex items-center gap-3"><div className="h-3 w-3 rounded-full bg-red-500" /> MAG'LUBIYAT: {data.missed}</p>
-                            <div className="mt-4 pt-4 border-t border-white/10 text-2xl font-black text-indigo-400">{data.percent}% ERISHILDI</div>
+                          <div className="backdrop-blur-lg border bg-slate-950/95 border-white/10 p-5 rounded-[2rem] shadow-4xl text-white">
+                            <p className="font-black uppercase mb-2 border-b border-white/10 pb-2 tracking-widest text-[10px] text-indigo-300">{data.fullDate}</p>
+                            <p className="font-bold text-xs flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-indigo-500" /> G'ALABA: {Math.floor(data.done)}</p>
+                            <p className="font-bold text-xs flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-red-500" /> BOY BERILDI: {data.missed}</p>
+                            <div className="mt-3 pt-3 border-t border-white/10 text-xl font-black text-indigo-400">{data.percent}% Natija</div>
                           </div>
                         );
                       }
                       return null;
                     }}
                   />
-                  <Bar dataKey="done" stackId="a" fill="#4f46e5" radius={historyData.some(d => d.missed === 0) ? [12, 12, 0, 0] : [0, 0, 0, 0]} />
-                  <Bar dataKey="missed" stackId="a" fill="#ef4444" radius={[12, 12, 0, 0]} minPointSize={10} />
+                  <Bar dataKey="done" stackId="a" fill="#4f46e5" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="missed" stackId="a" fill="#ef4444" radius={[6, 6, 0, 0]} minPointSize={2} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-8 flex justify-center gap-10">
-               <div className="flex items-center gap-3">
-                 <div className="h-4 w-4 rounded-full bg-indigo-500" />
+            <div className="mt-8 flex justify-center gap-8">
+               <div className="flex items-center gap-2">
+                 <div className="h-3 w-3 rounded-full bg-indigo-500" />
                  <span className="text-[10px] font-black uppercase text-indigo-300 tracking-widest">G'ALABA (DONE)</span>
                </div>
-               <div className="flex items-center gap-3">
-                 <div className="h-4 w-4 rounded-full bg-red-500" />
+               <div className="flex items-center gap-2">
+                 <div className="h-3 w-3 rounded-full bg-red-500" />
                  <span className="text-[10px] font-black uppercase text-red-400 tracking-widest">MAG'LUBIYAT (MISSED)</span>
                </div>
             </div>
           </Card>
         </div>
 
-        {/* Sidebar */}
         <div className="lg:col-span-4 space-y-12">
           
+          {/* Millionaire Index Card */}
           <Card className={cn(
             "rounded-[4rem] border border-white/10 shadow-4xl overflow-hidden transition-all duration-700",
-            isFailDay ? "bg-red-950 border-red-500/30" :
-            selectedDayStats.percent >= 80 ? "bg-gradient-to-br from-indigo-700 via-indigo-900 to-purple-950 shadow-[0_0_60px_rgba(79,70,229,0.3)]" : "bg-slate-900/60"
+            isFailDay ? "bg-red-950 border-red-500/30" : "bg-slate-900/60"
           )}>
             <CardHeader className="p-10 pb-6">
               <CardTitle className="text-[12px] flex items-center gap-3 font-black uppercase tracking-[0.3em] text-indigo-200">
                 <Target className="h-6 w-6" /> Millionaire Index
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-10 pt-0 space-y-10">
-              <div className="flex items-end justify-between">
-                <div className="text-8xl font-black tracking-tighter leading-none text-white">
-                  {selectedDayStats.percent}<span className="text-3xl opacity-50 ml-1">%</span>
-                </div>
+            <CardContent className="p-10 pt-0 space-y-8">
+              <div className="text-8xl font-black tracking-tighter leading-none text-white">
+                {selectedDayStats.percent}<span className="text-3xl opacity-50 ml-1">%</span>
               </div>
               <div className="space-y-4">
                 <div className="h-6 w-full bg-black/40 rounded-full overflow-hidden border border-white/10 p-1">
                   <div 
                     className={cn(
                       "h-full rounded-full transition-all duration-1000 ease-out",
-                      isFailDay ? "bg-red-500" : selectedDayStats.percent >= 80 ? "bg-white" : "bg-indigo-500"
+                      isFailDay ? "bg-red-500" : "bg-indigo-500"
                     )}
                     style={{ width: `${selectedDayStats.percent}%` }}
                   />
                 </div>
-                <p className="text-[11px] font-black text-center uppercase tracking-[0.2em] text-indigo-100">
+                <p className="text-[10px] font-black text-center uppercase tracking-widest text-indigo-300">
                   {selectedDayStats.percent === 100 ? "ALLOH SENGADAN ROZI BO'LSIN, CHEMPION!" : 
-                   selectedDayStats.percent >= 80 ? "EVROPA SARI TO'G'RI YO'LDASAS!" : 
+                   selectedDayStats.percent >= 80 ? "EVROPA SARI TO'G'RI YO'LDASIZ!" : 
                    selectedDayStats.percent > 0 ? "RONALDO BO'LAMAN DESANG, TUR O'RNINGDAN!" : "ABUBAKR, MILLIONERLIKNI UNUTDINGMI?"}
                 </p>
               </div>
@@ -512,7 +492,7 @@ export default function KunRejaApp() {
           </Card>
 
           <div className="space-y-6">
-            <p className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.4em] px-6">TRENER VA RONALDO MASLAHATI</p>
+            <p className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.4em] px-6 text-center">COACH MASLAHATI</p>
             {MOTIVATIONS.map((m, i) => (
               <Card key={i} className="bg-slate-900/40 border border-white/5 shadow-2xl rounded-[3rem] group hover:border-indigo-500/50 transition-all">
                 <CardContent className="p-8 flex items-start gap-6">
@@ -522,7 +502,7 @@ export default function KunRejaApp() {
                      <Globe className="h-6 w-6 text-indigo-400" />}
                   </div>
                   <div className="space-y-2">
-                    <p className="text-[15px] font-black text-white leading-tight">"{m.text}"</p>
+                    <p className="text-[14px] font-black text-white leading-tight">"{m.text}"</p>
                     <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">— {m.category === 'ronaldo' ? 'Cristiano Ronaldo' : 'Ustozing'}</span>
                   </div>
                 </CardContent>
@@ -532,7 +512,7 @@ export default function KunRejaApp() {
         </div>
       </div>
 
-      {/* Daily Notes / Trainer Report - AT THE ABSOLUTE BOTTOM */}
+      {/* Trainer Report - AT THE ABSOLUTE BOTTOM */}
       <div className="pt-20">
         <Card className="rounded-[3.5rem] border border-white/10 bg-slate-900/40 p-10 shadow-3xl">
           <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-6">
@@ -541,8 +521,10 @@ export default function KunRejaApp() {
                 <FileText className="h-8 w-8 text-indigo-400" />
               </div>
               <div>
-                <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Trener Hisoboti (Kunlik Xulosa)</h3>
-                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">18 yoshli muvaffaqiyating kundaligi</p>
+                <h3 className="text-3xl font-black text-white uppercase tracking-tighter">
+                  {format(selectedDate, 'd-MMMM', { locale: uz })} HISOBOTI
+                </h3>
+                <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">18 yoshli muvaffaqiyat kundaligi</p>
               </div>
             </div>
             <Button onClick={saveNote} className="rounded-2xl h-14 px-10 bg-indigo-600 hover:bg-indigo-500 text-white font-black gap-3 transition-all shadow-2xl">
@@ -551,14 +533,14 @@ export default function KunRejaApp() {
           </div>
           <Textarea 
             placeholder="Abubakr, bugun nimalar qilding? Qayerda qiynalding? Millionerlik sari qadamlaringni yoz..."
-            className="min-h-[250px] rounded-[2.5rem] bg-black/60 border-white/10 text-xl font-medium p-10 focus:ring-4 focus:ring-indigo-500/30 resize-none transition-all shadow-inner custom-scrollbar"
+            className="min-h-[300px] rounded-[2.5rem] bg-black/60 border-white/10 text-xl font-medium p-10 focus:ring-4 focus:ring-indigo-500/30 resize-none transition-all shadow-inner custom-scrollbar"
             value={noteContent}
             onChange={(e) => setNoteContent(e.target.value)}
           />
         </Card>
       </div>
 
-      {/* Control Center Trigger */}
+      {/* Admin Settings Button */}
       <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
         <DialogTrigger asChild>
           <Button className="fixed bottom-8 right-8 h-20 w-20 rounded-full shadow-[0_0_40px_rgba(79,70,229,0.4)] p-0 z-50 bg-indigo-600 border-4 border-white/20 hover:scale-110 transition-all group overflow-hidden">
@@ -619,18 +601,17 @@ export default function KunRejaApp() {
         </DialogContent>
       </Dialog>
 
-      {/* Final Motivational Message */}
       <div className="flex flex-col items-center justify-center pt-20 pb-10 space-y-8">
          <div className="text-center max-w-2xl space-y-6 opacity-80">
            <Trophy className="h-16 w-16 mx-auto text-yellow-500/80" />
            <h3 className="text-2xl font-black uppercase tracking-[0.2em] text-white">INSHA'ALLOH, EVROPADA G'OLIB BO'LASAN!</h3>
-           <p className="text-[11px] md:text-sm font-black uppercase tracking-[0.3em] leading-relaxed text-slate-400">
+           <p className="text-[10px] font-black uppercase tracking-[0.3em] leading-relaxed text-slate-400">
              Abubakr, 18 yoshingda O'zbekistondan ketib, butun dunyoga millioner bo'lib tanilishing bugungi harakatingga bog'liq. 
              Allohni unutma, namozingni tashlama!
            </p>
          </div>
          <div className="flex items-center gap-4 text-indigo-500/40 font-black tracking-widest text-xs uppercase">
-           <Flag className="h-4 w-4" /> UZBEKISTAN ➔ EUROPE ➔ MILLIONAIRE <Globe className="h-4 w-4" />
+           <HandMetal className="h-4 w-4" /> UZBEKISTAN ➔ EUROPE ➔ MILLIONAIRE <Globe className="h-4 w-4" />
          </div>
       </div>
     </div>

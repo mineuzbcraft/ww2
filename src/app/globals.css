@@ -60,15 +60,6 @@
   will-change: transform;
 }
 
-@keyframes glow-gold {
-  0%, 100% { box-shadow: 0 0 10px rgba(234, 179, 8, 0.2); }
-  50% { box-shadow: 0 0 20px rgba(234, 179, 8, 0.4); }
-}
-
-.animate-glow-gold {
-  animation: glow-gold 5s ease-in-out infinite;
-}
-
 .animate-in {
   animation-duration: 400ms;
   animation-fill-mode: both;
